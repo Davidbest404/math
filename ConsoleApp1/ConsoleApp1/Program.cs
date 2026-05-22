@@ -1,170 +1,86 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
-// Вспомогательный класс для хранения результата и строки выражения
-class ExpressionResult
+class MaxSubarrayFinder
 {
-    public int Value { get; set; }
-    // Список всех возможных строк, дающих это значение (для режима "все варианты")
-    public List<string> Expressions { get; set; }
-
-    public ExpressionResult(int value, string expr)
+    // Структура для удобного возврата нескольких значений
+    public struct SubarrayResult
     {
-        Value = value;
-        Expressions = new List<string> { expr };
-    }
-}
-
-class ExpressionMaximizerDetailed
-{
-    static int ApplyOp(int a, char op, int b)
-    {
-        switch (op)
-        {
-            case '+': return a + b;
-            case '-': return a - b;
-            case '*': return a * b;
-            default: throw new ArgumentException("Недопустимая операция");
-        }
+        public int MaxSum;
+        public int StartIndex;
+        public int EndIndex;
     }
 
-    static void FindMaxValueDetailed(int[] nums, char[] ops, bool showAllSteps)
+    // Основная функция алгоритма Кадане
+    static SubarrayResult FindMaxSubarray(int[] nums)
     {
-        int n = nums.Length;
+        if (nums == null || nums.Length == 0)
+            throw new ArgumentException("Массив не должен быть пустым.");
 
-        // Таблицы теперь хранят объекты ExpressionResult
-        ExpressionResult[,] M = new ExpressionResult[n, n]; // Максимумы
-        ExpressionResult[,] m = new ExpressionResult[n, n]; // Минимумы
+        // Инициализация текущими и глобальными значениями
+        int current_sum = nums[0];
+        int max_sum = nums[0];
 
-        // Инициализация: подвыражения из одного числа
-        for (int i = 0; i < n; i++)
+        // Переменные для отслеживания границ подмассива
+        int start_temp = 0; // Временная метка начала текущего подмассива
+        int start_index = 0; // Финальная метка начала лучшего подмассива
+        int end_index = 0;   // Финальная метка конца лучшего подмассива
+
+        // Начинаем цикл со второго элемента (индекс 1)
+        for (int i = 1; i < nums.Length; i++)
         {
-            M[i, i] = new ExpressionResult(nums[i], nums[i].ToString());
-            m[i, i] = new ExpressionResult(nums[i], nums[i].ToString());
-
-            if (showAllSteps)
+            // Если current_sum + nums[i] меньше, чем nums[i],
+            // значит, выгоднее начать новый подмассив с текущего элемента.
+            if (nums[i] > current_sum + nums[i])
             {
-                Console.WriteLine($"Инициализация M[{i},{i}] = {nums[i]}");
-                Console.WriteLine($"Инициализация m[{i},{i}] = {nums[i]}");
+                current_sum = nums[i];
+                start_temp = i; // Обновляем временную метку начала
+            }
+            else
+            {
+                current_sum += nums[i]; // Расширяем текущий подмассив
+            }
+
+            // Если нашли новую глобальную максимальную сумму,
+            // обновляем результат и фиксируем границы.
+            if (current_sum > max_sum)
+            {
+                max_sum = current_sum;
+                start_index = start_temp;
+                end_index = i;
             }
         }
 
-        // l - длина цепочки (количество чисел в подвыражении)
-        for (int l = 2; l <= n; l++)
-        {
-            for (int i = 0; i <= n - l; i++)
-            {
-                int j = i + l - 1;
-
-                // Списки для сбора всех возможных значений и выражений на этом шаге
-                var tempResults = new Dictionary<int, HashSet<string>>();
-
-                for (int k = i; k < j; k++)
-                {
-                    // Перебираем все комбинации левого и правого подвыражений
-                    var combos = new (ExpressionResult left, ExpressionResult right)[]
-                    {
-                        (M[i, k], M[k + 1, j]),
-                        (M[i, k], m[k + 1, j]),
-                        (m[i, k], M[k + 1, j]),
-                        (m[i, k], m[k + 1, j])
-                    };
-
-                    foreach (var combo in combos)
-                    {
-                        int val = ApplyOp(combo.left.Value, ops[k], combo.right.Value);
-                        string expr = $"({combo.left.Expressions[0]}{ops[k]}{combo.right.Expressions[0]})";
-
-                        // Добавляем результат во временный словарь
-                        if (!tempResults.ContainsKey(val))
-                            tempResults[val] = new HashSet<string>();
-                        tempResults[val].Add(expr);
-                    }
-                }
-
-                // Находим максимум и минимум для текущего отрезка [i, j]
-                int maxVal = int.MinValue;
-                int minVal = int.MaxValue;
-
-                foreach (var kvp in tempResults)
-                {
-                    if (kvp.Key > maxVal) maxVal = kvp.Key;
-                    if (kvp.Key < minVal) minVal = kvp.Key;
-                }
-
-                // Формируем финальные объекты M[i,j] и m[i,j]
-                M[i, j] = new ExpressionResult(maxVal, string.Join(" | ", tempResults[maxVal]));
-                m[i, j] = new ExpressionResult(minVal, string.Join(" | ", tempResults[minVal]));
-
-                if (showAllSteps)
-                {
-                    Console.WriteLine($"\n--- Итог для отрезка [{i},{j}] ---");
-                    Console.WriteLine($"M[{i},{j}] (Макс: {maxVal}) -> {M[i, j].Expressions[0]}");
-                    Console.WriteLine($"m[{i},{j}] (Мин: {minVal}) -> {m[i, j].Expressions[0]}");
-
-                    if (tempResults[maxVal].Count > 1)
-                        Console.WriteLine($"  Примечание: Есть {tempResults[maxVal].Count} вариантов для максимума.");
-                }
-            }
-        }
-
-        // Вывод финального результата
-        Console.WriteLine("\n=== ФИНАЛЬНЫЙ РЕЗУЛЬТАТ ===");
-        Console.WriteLine($"Максимальное значение: {M[0, n - 1].Value}");
-
-        if (showAllSteps)
-        {
-            Console.WriteLine("Все варианты выражения для максимума:");
-            foreach (var expr in M[0, n - 1].Expressions)
-            {
-                Console.WriteLine(expr);
-            }
-        }
-        else
-        {
-            Console.WriteLine("Одно из решений:");
-            Console.WriteLine(M[0, n - 1].Expressions[0]);
-        }
+        return new SubarrayResult { MaxSum = max_sum, StartIndex = start_index, EndIndex = end_index };
     }
 
     static void Main()
     {
-        Console.Write("Введите выражение (например: 3+5*6-8): ");
+        Console.Write("Введите числа через пробел: ");
         string input = Console.ReadLine();
 
-        // Парсим входную строку в массивы чисел и операций
-        string[] tokens = System.Text.RegularExpressions.Regex.Split(input, @"([+\-*])");
+        // Парсинг введенной строки в массив чисел
+        string[] parts = input.Split(new char[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        int[] nums = new int[parts.Length];
 
-        List<int> numsList = new List<int>();
-        List<char> opsList = new List<char>();
-
-        for (int i = 0; i < tokens.Length; i++)
+        for (int i = 0; i < parts.Length; i++)
         {
-            if (!string.IsNullOrWhiteSpace(tokens[i]))
-            {
-                if (i % 2 == 0) // Числа на четных позициях
-                    numsList.Add(int.Parse(tokens[i]));
-                else // Операции на нечетных
-                    opsList.Add(tokens[i][0]);
-            }
+            nums[i] = int.Parse(parts[i]);
         }
 
-        int[] nums = numsList.ToArray();
-        char[] ops = opsList.ToArray();
-
-        if (nums.Length == 0 || ops.Length + 1 != nums.Length)
+        try
         {
-            Console.WriteLine("Некорректный ввод.");
-            return;
+            SubarrayResult result = FindMaxSubarray(nums);
+
+            // Формируем строку с элементами найденного подмассива для красивого вывода
+            string subarrayStr = string.Join(", ", nums, result.StartIndex, result.EndIndex - result.StartIndex + 1);
+
+            Console.WriteLine($"\nМаксимальная сумма: {result.MaxSum}");
+            Console.WriteLine($"Непрерывный подмассив: [{subarrayStr}]");
+            Console.WriteLine($"Индексы в массиве: от {result.StartIndex} до {result.EndIndex}");
         }
-
-        Console.WriteLine("Выберите режим вывода:");
-        Console.WriteLine("1. Только ответ и одно решение");
-        Console.WriteLine("2. Показать все шаги и варианты");
-
-        bool showAllSteps = Console.ReadLine() == "2";
-
-        FindMaxValueDetailed(nums, ops, showAllSteps);
+        catch (Exception ex)
+        {
+            Console.WriteLine("Ошибка: " + ex.Message);
+        }
     }
 }
